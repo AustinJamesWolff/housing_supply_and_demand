@@ -79,28 +79,138 @@
 -->
 
 
-<!-- ABOUT THE PROJECT
+<!-- ABOUT THE PROJECT -->
 ## About The Project
 
-Here's a blank template to get started: To avoid retyping too much info. Do a search and replace with your text editor for the following: `github_username`, `repo_name`, `twitter_handle`, `linkedin_username`, `email`, `email_client`, `project_title`, `project_description`
+This repo is meant to help a real estate investor determine the best market to invest into multifamily properties, and therefore prioritizes datasets such as job growth, population growth, and rent growth.
+
+The following questions will be answered:
+
+1. Which cities have the most job growth over a 10-year period? And which cities have the **fastest** job growth?
+2. Of the top 25 cities with the best job growth, which have the best rent-to-price ratio? (This could offer a better cash-on-cash return and potentially a superior IRR depending on appreciation.)
+3. Which neighborhoods are:
+   1. Having an increasing percent of renters, and of those,
+   2. Which are experiencing the most rent growth?
+4. Which neighborhoods are about to undergo gentrification in Los Angeles County?
+   1. This will involve looking at the rent spread (between the 1st Quartile and 3rd Quartile), then turning that spread into its own metric, then training a linear autoregressive model on it, then using that model to predict which census tracts will undergo gentrification in 3 years.
+   2. I am choosing Los Angeles County so I can drive to the neighborhoods predicted and view them for myself.
 
 <p align="right">(<a href="#top">back to top</a>)</p>
-
-
 
 ### Built With
 
-* [Next.js](https://nextjs.org/)
-* [React.js](https://reactjs.org/)
-* [Vue.js](https://vuejs.org/)
-* [Angular](https://angular.io/)
-* [Svelte](https://svelte.dev/)
-* [Laravel](https://laravel.com)
-* [Bootstrap](https://getbootstrap.com)
-* [JQuery](https://jquery.com)
+* Jupyter Notebook
+* Python
+* Pandas
+* US Census (Census) API
+* Bureau of Labor Statistics (BLS) API
+
+### The Datasets Used
+
+* Number of Jobs (BLS)
+  * City level
+* Rent Q1 (Census) (First Quartile)
+  * Tract and City level
+* Rent Q2 (Census) (Q2 is the Median)
+  * Tract and City level
+* Rent Q3 (Census) (Third Quartile)
+  * Tract and City level
+* Median Unit Price (Census)
+  * Tract and City level
+* Percent Renter-Occupied (Census)
+  * Tract and City level
+* Population (Census)
+  * Tract and City level
+
+
+### US Census Data Table Codes
+
+#### At The Tract and City Level
+* Median Rent
+  * 2010-2021: B25064_001E
+* Renter-Occupied Units
+  * 2010-2014: DP04_0046E
+  * 2015-2021: DP04_0047E
+* Owner-Occupied Units
+  * 2010-2014: DP04_0045E
+  * 2015-2021: DP04_0046E
+* Occupied Units
+  * 2010-2021: DP04_0002E
+* Total Housing Units
+  * 2010-2021: DP04_0001E
+* Vacant Units
+  * 2010-2021: DP04_0003E
+* Vacancy Rate
+  * 2010-2021: DP04_0003PE
+* Avg Owner Household Size
+  * 2010-2014: DP04_0047E
+  * 2015-2021: DP04_0048E
+* Avg Renter Household Size
+  * 2010-2014: DP04_0048E
+  * 2015-2021: DP04_0049E
+* Total Housing Units
+  * 2010-2021: DP04_0001E
+* Median Household Income
+  * 2010-2021: B19013_001E
+* Unemployment
+  * 2010-2021: DP03_0009PE
+
+#### At The Block Group Level
+
+* Population
+  * 2013-2021: B01003_001E
+* Rent Distribution
+  * 'B25063_003E': 'rent_less_than_100',
+    'B25063_004E': 'rent_100_to_149',
+    'B25063_005E': 'rent_150_to_199',
+    'B25063_006E': 'rent_200_to_249',
+    'B25063_007E': 'rent_250_to_299',
+    'B25063_008E': 'rent_300_to_349',
+    'B25063_009E': 'rent_350_to_399',
+    'B25063_010E': 'rent_400_to_449',
+    'B25063_011E': 'rent_450_to_499',
+    'B25063_012E': 'rent_500_to_549',
+    'B25063_013E': 'rent_550_to_599',
+    'B25063_014E': 'rent_600_to_649',
+    'B25063_015E': 'rent_650_to_699',
+    'B25063_016E': 'rent_700_to_749',
+    'B25063_017E': 'rent_750_to_799',
+    'B25063_018E': 'rent_800_to_899',
+    'B25063_019E': 'rent_900_to_999',
+    'B25063_020E': 'rent_1000_to_1249',
+    'B25063_021E': 'rent_1250_to_1449',
+    'B25063_022E': 'rent_1500_to_1999',
+    'B25063_023E': 'rent_2000_to_2499',
+    'B25063_024E': 'rent_2500_to_2999',
+    'B25063_025E': 'rent_3000_to_3499',
+    'B25063_026E': 'rent_3500_or_more'
+* Household Income Distribution
+  * 'B19001_002E': 'income_less_than_10000',
+    'B19001_003E': 'income_10000_to_14999',
+    'B19001_004E': 'income_15000_to_19999',
+    'B19001_005E': 'income_20000_to_24999',
+    'B19001_006E': 'income_25000_to_29999',
+    'B19001_007E': 'income_30000_to_34999',
+    'B19001_008E': 'income_35000_to_39999',
+    'B19001_009E': 'income_40000_to_44999',
+    'B19001_010E': 'income_45000_to_49999',
+    'B19001_011E': 'income_50000_to_59999',
+    'B19001_012E': 'income_60000_to_74999',
+    'B19001_013E': 'income_75000_to_99999',
+    'B19001_014E': 'income_100000_to_124999',
+    'B19001_015E': 'income_125000_to_149999',
+    'B19001_016E': 'income_150000_to_199999',
+    'B19001_017E': 'income_200000_or_more'
+* 
+
+
+### Visualizations Created
+
+* Map of Rent-to-Price ratios by city
+* Map of Rent-to-Price ratios for all tracts in a city
 
 <p align="right">(<a href="#top">back to top</a>)</p>
--->
+
 
 
 <!-- GETTING STARTED

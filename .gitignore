@@ -1,0 +1,20 @@
+.ipynb_checkpoints
+.vscode
+.DS_Store
+graphs/
+graphs
+*.ipynb
+.env
+venv/
+**/__pycache__
+env/
+
+
+# Specific large datasets
+geopackages/
+ipums_data/
+for_software/
+raw/
+block_groups_2020/
+census_tracts_2020/
+cities_2020/
