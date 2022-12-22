@@ -94,6 +94,10 @@ The following questions will be answered:
 4. Which neighborhoods are about to undergo gentrification in Los Angeles County?
    1. This will involve looking at the rent spread (between the 1st Quartile and 3rd Quartile), then turning that spread into its own metric, then training a linear autoregressive model on it, then using that model to predict which census tracts will undergo gentrification in 3 years.
    2. I am choosing Los Angeles County so I can drive to the neighborhoods predicted and view them for myself.
+5. Which neihgborhoods have the most growth of same-sex households?
+6. Is there a correlation (using a p-value of 0.05) between same-sex household growth and rent growth?
+   1. If so, what neighborhoods are experiencing same-sex household growth that are predominantly renter-occupied, with rent growth?
+      1. The thesis is, if rent growth is correlated with same-sex household growth, we may be able to identify rent-growth opportunities that have not yet occured if we can identiy neighborhoods with a growing number of LGBTQ individuals. 
 
 <p align="right">(<a href="#top">back to top</a>)</p>
 
