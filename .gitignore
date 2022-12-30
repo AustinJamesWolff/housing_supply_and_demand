@@ -3,7 +3,6 @@
 .DS_Store
 graphs/
 graphs
-*.ipynb
 .env
 venv/
 **/__pycache__
