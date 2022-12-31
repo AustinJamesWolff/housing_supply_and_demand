@@ -415,7 +415,134 @@ async def url_to_dataframe_async_owners(begin_year,
         
     return
 
-def final_data_prep(df_list, name, blocks=False):
+
+# Define function to download census data at the MSA level
+async def url_to_dataframe_async_acs1(begin_year,
+                            end_year,
+                            census_code_dict,
+                            df_list,
+                            census_code_meaning,
+                            get_msa=False,
+                            census_key=census_key,
+                            census_table='profile',
+                            multi_code=False,
+                            code_name_dict=None
+                          ):
+    """
+    Convert API url request to dataframe
+    """
+    session = Session()
+
+    for year in range(begin_year, end_year + 1):
+        
+        # The ACS did not collect data for 2020 due to COVID-19
+        if year != 2020:
+        
+            # Create temporary list to help combine dataframes with
+            # the same year together
+            temp_list = []
+
+            if multi_code == True:
+                renamed_code_columns = {}
+
+            # Get the correct URL based on city or MSA level
+            if get_msa:
+                url = f"""https://api.census.gov/data/{year}/acs/acs1?get=NAME,{census_code_dict[year]}&for=metropolitan%20statistical%20area/micropolitan%20statistical%20area:*&key={census_key}"""
+
+            # Double-check the URL is correct by printing it
+            print("URL:", url)
+
+            # Simple function we can recursively recall if
+            # the connection times out. However, this may
+            # cause an infinite loop if the connection times
+            # out due to any external reason, such as the server
+            # being down. Please keep an eye as this function runs.
+            def get_response(url):
+                try:
+                    # GET request the API
+                    response = session.get(url, timeout=10)
+                except (requests.exceptions.ReadTimeout, 
+                        requests.exceptions.ConnectionError):
+                    print("Request timed out, trying again.\n")
+                    response = get_response(url)
+                return response
+
+            response = get_response(url)
+
+            # Parse the response
+            df = pd.DataFrame(response.json()[1:], columns=response.json()[0])
+
+            # Turn year into an indexable column
+            year_col = str(year)
+
+            # Rename column
+            if multi_code == False:
+                df.rename(columns={census_code_dict[year]:year_col}, inplace=True)
+
+                # Make sure our new column is float64
+                df[year_col] = df[year_col].astype('float64')
+
+            else:
+                for code in census_code_dict[year]:
+                    rename_var = code_name_dict[code]
+                    renamed_code_columns[code] = f'{year_col}_{rename_var}'
+                    # renamed_code_columns.append(f'{year_col}_{rename_var}')
+                    df.rename(columns={code:f'{year_col}_{rename_var}'}, inplace=True)
+
+                    # Make sure our new column is float64
+                    df[f'{year_col}_{rename_var}'] = df[f'{year_col}_{rename_var}'].astype('float64')
+
+            # Make columns lowercase
+            df.columns = df.columns.str.lower()
+            
+            # If msa, use msa code provided
+            if get_msa:
+                df = df.rename(columns={
+                    'metropolitan statistical area/micropolitan statistical area':'geo_id'
+                })
+
+            # Append our dataframe to the temporary list to later combine
+            temp_list.append(df)
+
+            # Concat our two year-based dataframes together
+            new_df = pd.concat(temp_list).reset_index().drop(columns=['index'])
+
+            # Set geo_id as the index for joining all years
+            # together at the end 
+            new_df = new_df.set_index('geo_id')
+
+            display(new_df)
+
+            # If this is our first dataframe, include every column
+            if len(df_list) == 0:
+                # Append dataframe to list
+                display(new_df.head())
+                df_list.append(new_df)
+            # Otherwise, only include the specific data column
+            # to save memory
+            else:
+                # Only keep our main column
+                if multi_code == False:
+                    new_df = new_df[year_col]
+                else:
+                    renamed_list = []
+                    for code in renamed_code_columns:
+                        renamed_list.append(renamed_code_columns[code])
+                    new_df = new_df[renamed_list]
+
+                # Append dataframe to list
+                display(new_df.head())
+                df_list.append(new_df)
+
+    return
+
+
+
+def final_data_prep(df_list, name, 
+                    tracts=False, 
+                    blocks=False, 
+                    msa=False,
+                    end_year=2021):
     """
     Merge the dataframes and clean them.
     """
@@ -430,21 +557,60 @@ def final_data_prep(df_list, name, blocks=False):
     df = df.reset_index()
 
     # Double-clean state, county, and tract columns with geo_id
-    if blocks == False:
+    if tracts:
         # For tract-based data
         df['state'] = df['geo_id'].apply(lambda x: str(x)[-11:-9])
         df['county'] = df['geo_id'].apply(lambda x: str(x)[-9:-6])
         df['tract'] = df['geo_id'].apply(lambda x: str(x)[-11:])
         df['geo_id'] = df['geo_id'].astype(str)
-    else:
+        
+        # Save to csv in raw folder
+        df.to_csv(f'datasets/cleaned_census_api_files/raw/{name}_raw.csv', 
+              encoding='utf-8', index=False)
+        
+    elif blocks:
         # For block-based data
         df['state'] = df['geo_id'].apply(lambda x: str(x)[-12:-10])
         df['county'] = df['geo_id'].apply(lambda x: str(x)[-10:-7])
         df['tract'] = df['geo_id'].apply(lambda x: str(x)[-12:-1])
         df['block'] = df['geo_id'].apply(lambda x: str(x)[-12:])
         df['geo_id'] = df['geo_id'].astype(str)
-    
-    df.to_csv(f'datasets/cleaned_census_api_files/raw/{name}_raw.csv', encoding='utf-8', index=False)
+        
+        # Save to csv in raw folder
+        df.to_csv(f'datasets/cleaned_census_api_files/raw/{name}_raw.csv', 
+              encoding='utf-8', index=False)
+        
+    elif msa:
+        # For msa-based data
+        df['msa_code'] = df['geo_id'].apply(lambda x: str(x)[-5:])
+        
+        # Drop geo_id, there is no need for it
+        df.drop(columns=['geo_id'], inplace=True)
+        
+        # Since 2020 ACS 1-Year data is not available, I am
+        # making the decision to interpolate the value (using
+        # the 2019 and 2021 values)
+        
+        # First create the column
+        df['2020'] = np.nan
+        
+        # Now reorganize the column
+        df = df[['name','msa_code'] + [str(i) for i in range(2010, end_year + 1)]]
+        
+        # Now interpolate 2020 values by taking 
+        # the average of 2019 and 2021
+        df['2020'] = np.where(
+            (df['2019'].notna() & df['2021'].notna()),
+            (df['2019'] + df['2021'])/2,
+            df['2020']
+        )
+        
+        # create msa folder if nonexistent
+        create_folder("datasets/cleaned_census_api_files/msa_data")
+        
+        # Save to csv in msa folder
+        df.to_csv(f'datasets/cleaned_census_api_files/msa_data/{name}.csv', 
+              encoding='utf-8', index=False)
 
     
     print("Completed data prep.")

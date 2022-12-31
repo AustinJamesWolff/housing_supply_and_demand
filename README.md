@@ -112,22 +112,26 @@ The following questions will be answered:
 ### The Datasets Used
 
 * Number of Jobs (BLS)
-  * City level
+  * MSA level
 * Rent Q1 (Census) (First Quartile)
-  * Tract and City level
+  * Tract level
 * Rent Q2 (Census) (Q2 is the Median)
-  * Tract and City level
+  * Tract and MSA level
 * Rent Q3 (Census) (Third Quartile)
-  * Tract and City level
+  * Tract level
 * Median Unit Price (Census)
-  * Tract and City level
+  * Tract and MSA level
 * Percent Renter-Occupied (Census)
-  * Tract and City level
+  * Tract and MSA level
 * Population (Census)
-  * Tract and City level
+  * Tract and MSA level
+* Median Income (Census)
+  * Tract and MSA level
 
 
 ### US Census Data Table Codes
+
+This website is a good resource for finding census codes: https://censusreporter.org/topics/
 
 #### At The Tract and City Level
 * Median Rent
