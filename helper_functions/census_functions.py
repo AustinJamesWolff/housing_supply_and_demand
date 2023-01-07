@@ -433,7 +433,7 @@ async def url_to_dataframe_async_acs1(begin_year,
     """
     session = Session()
 
-    for year in range(begin_year, end_year + 1):
+    for year in range(end_year, begin_year - 1, -1):
         
         # The ACS did not collect data for 2020 due to COVID-19
         if year != 2020:
@@ -507,22 +507,18 @@ async def url_to_dataframe_async_acs1(begin_year,
             # Concat our two year-based dataframes together
             new_df = pd.concat(temp_list).reset_index().drop(columns=['index'])
 
-            # Set geo_id as the index for joining all years
-            # together at the end 
-            new_df = new_df.set_index('geo_id')
-
-            display(new_df)
-
             # If this is our first dataframe, include every column
             if len(df_list) == 0:
                 # Append dataframe to list
-                display(new_df.head())
                 df_list.append(new_df)
             # Otherwise, only include the specific data column
             # to save memory
             else:
+                # If msa, keep all columns
+                if get_msa:
+                    df_list.append(new_df)
                 # Only keep our main column
-                if multi_code == False:
+                elif multi_code == False:
                     new_df = new_df[year_col]
                 else:
                     renamed_list = []
@@ -531,11 +527,9 @@ async def url_to_dataframe_async_acs1(begin_year,
                     new_df = new_df[renamed_list]
 
                 # Append dataframe to list
-                display(new_df.head())
                 df_list.append(new_df)
 
     return
-
 
 
 def final_data_prep(df_list, name, 
@@ -546,12 +540,34 @@ def final_data_prep(df_list, name,
     """
     Merge the dataframes and clean them.
     """
-    # Concat our three dataframes
-    df = reduce(lambda left, right: 
-               pd.merge(left, right, 
-                        left_index=True, 
-                        right_index=True,
-                        how="outer"), df_list)
+    # Concat our dataframes
+    if msa:
+        df = reduce(lambda left, right: 
+                   pd.merge(left, right, 
+                            left_on=['geo_id'], 
+                            right_on=['geo_id'],
+                            suffixes=(None, "_y"),
+                            how="outer"), df_list)
+                
+        # Drop all rows that are "micro areas"
+        df = df[~df['name'].fillna("no").str.contains('Micro Area')]
+        
+        # Now drop all rows where the end_year is Null, meaning there
+        # was no data for the most recent year. This likely means
+        # the Metro/Micro no longer exists or its name was changed
+        # with a different MSA code, technically making them two 
+        # different places (with the data of the prior years no longer
+        # connected to the re-named and re-coded Metro)
+        df = df[(df[f"{end_year}"].notna())]
+        
+    # Otherwise, if not msa
+    else:
+        df = reduce(lambda left, right: 
+                   pd.merge(left, right, 
+                            left_index=True, 
+                            right_index=True,
+                            how="outer"), df_list)
+
     
     # Prepare data for export
     df = df.reset_index()
@@ -597,6 +613,12 @@ def final_data_prep(df_list, name,
         # Now reorganize the column
         df = df[['name','msa_code'] + [str(i) for i in range(2010, end_year + 1)]]
         
+        # Strip "Metro Area" from name column (if it exists)
+        df['name'] = df['name'].apply(lambda x: x.replace(" Metro Area",""))
+        
+        # Rename 'name' column
+        df.rename(columns={'name':'msa_name'}, inplace=True)
+        
         # Now interpolate 2020 values by taking 
         # the average of 2019 and 2021
         df['2020'] = np.where(
@@ -616,6 +638,62 @@ def final_data_prep(df_list, name,
     print("Completed data prep.")
     
     return df
+
+
+def download_and_format_msa_census_data(
+    census_code,
+    census_code_meaning,
+    end_year=False
+):
+    """
+    This is the main function that formats
+    the Census API call, downloads it, and
+    formats it. Then it saves it to the repo.
+    
+    WARNING: This function assumes the census code
+    will NEVER change. This is certainly not the
+    case for census tract API calls, but for the
+    small set of MSA codes we are pulling, for now,
+    the census codes remain the same throughout
+    the years.
+    
+    """
+    # Define beginning year
+    begin_year = 2010
+
+    # If there's not already an end year, ask for it
+    if not end_year:
+
+        # Ask for end year
+        end_year = int(input("What is the last year to download data from? "))
+
+    # Start list
+    df_list = []
+    nest_asyncio.apply()
+
+    # Start session
+    session = Session()
+
+    # Define our API variable
+    # It's within a dictionary because some variables
+    # can change names from year to year (but not all)
+    census_code_dict = {i:census_code for i in range(
+        begin_year, end_year + 1)}
+
+    # Run the API call
+    asyncio.run(url_to_dataframe_async_acs1(
+        begin_year, end_year, 
+        census_code_dict=census_code_dict,
+        df_list=df_list,
+        census_code_meaning=census_code_meaning,
+        get_msa=True))
+
+    # Get merged dataframe
+    final_dataframe = final_data_prep(
+        df_list, census_code_meaning, 
+        msa=True, end_year=end_year)
+    
+    return final_dataframe
 
 
 def make_geodataframe(dataframe, census_geo_2010, census_geo_2019, census_geo_2020):
