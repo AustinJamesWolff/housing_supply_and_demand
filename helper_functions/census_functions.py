@@ -4,51 +4,28 @@ the U.S. Census Bureau and other related datasets.
 """
 # Import libraries
 
-import sys
 import re
 import requests
 import asyncio
 import nest_asyncio
-import aiohttp
-import time
 import warnings
 
 # Suppress unnecessary Shapely warning
 warnings.filterwarnings('ignore',
                         '.*Shapely GEOS version.*')
 
-from aiohttp import ClientSession
 from requests import request, Session
-from itertools import product, repeat
+from itertools import product
 from dotenv import load_dotenv
 import os
 from os import getenv
-from threading import Thread
 import time
-import inspect
 import pandas as pd
 import geopandas as gp
-import shapely
-import pygeos
 from functools import reduce
-from pandas.plotting import lag_plot
-import pickle
 import numpy as np
-import seaborn as sns
-import datetime as dt
 import copy
-import math
-from decimal import Decimal
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import matplotlib.ticker as mticker
-from matplotlib.ticker import MaxNLocator
-import matplotlib.dates as mdates
-import matplotlib.gridspec as gridspec
-from matplotlib.gridspec import GridSpec
-from matplotlib.offsetbox import AnchoredText
-import matplotlib as mpl
-import plotly.express as px
 
 
 # Set up Pandas defaults
