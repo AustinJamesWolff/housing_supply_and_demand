@@ -509,10 +509,129 @@ async def url_to_dataframe_async_acs1(begin_year,
     return
 
 
+# Define function to download census data at the city level, ACS 5-Year
+async def url_to_dataframe_async_acs5(begin_year,
+                            end_year,
+                            census_code_dict,
+                            df_list,
+                            census_code_meaning,
+                            get_city=False,
+                            get_msa=False,
+                            census_key=census_key,
+                            census_table='profile',
+                            multi_code=False,
+                            code_name_dict=None
+                          ):
+    """
+    Convert API url request to dataframe
+    """
+    session = Session()
+
+    for year in range(end_year, begin_year - 1, -1):
+        
+        # Create temporary list to help combine dataframes with
+        # the same year together
+        temp_list = []
+
+        if multi_code == True:
+            renamed_code_columns = {}
+
+        # Get the correct URL based on city or MSA level
+        if get_city:
+            url= f"""https://api.census.gov/data/{year}/acs/acs5?get=NAME,{census_code_dict[year]}&for=place:*&in=state:*&key={census_key}"""
+        
+        # Double-check the URL is correct by printing it
+        print("URL:", url)
+
+        # Simple function we can recursively recall if
+        # the connection times out. However, this may
+        # cause an infinite loop if the connection times
+        # out due to any external reason, such as the server
+        # being down. Please keep an eye as this function runs.
+        def get_response(url):
+            try:
+                # GET request the API
+                response = session.get(url, timeout=10)
+            except (requests.exceptions.ReadTimeout, 
+                    requests.exceptions.ConnectionError):
+                print("Request timed out, trying again.\n")
+                response = get_response(url)
+            return response
+
+        response = get_response(url)
+
+        # Parse the response
+        df = pd.DataFrame(response.json()[1:], columns=response.json()[0])
+
+        # Turn year into an indexable column
+        year_col = str(year)
+
+        # Rename column
+        if multi_code == False:
+            df.rename(columns={census_code_dict[year]:year_col}, inplace=True)
+
+            # Make sure our new column is float64
+            df[year_col] = df[year_col].astype('float64')
+
+        else:
+            for code in census_code_dict[year]:
+                rename_var = code_name_dict[code]
+                renamed_code_columns[code] = f'{year_col}_{rename_var}'
+                # renamed_code_columns.append(f'{year_col}_{rename_var}')
+                df.rename(columns={code:f'{year_col}_{rename_var}'}, inplace=True)
+
+                # Make sure our new column is float64
+                df[f'{year_col}_{rename_var}'] = df[f'{year_col}_{rename_var}'].astype('float64')
+
+        # Make columns lowercase
+        df.columns = df.columns.str.lower()
+
+        # If city, get the city geo_id
+        if get_city:
+            df['state'] = df['state'].astype(str)
+            df['place'] = df['place'].astype(str)
+            df['geo_id'] = df['state'] + df['place']
+            
+            # Drop place and state
+            df.drop(columns=['place','state'], inplace=True)
+
+        # Append our dataframe to the temporary list to later combine
+        temp_list.append(df)
+
+        # Concat our two year-based dataframes together
+        new_df = pd.concat(temp_list).reset_index().drop(columns=['index'])
+
+        # If this is our first dataframe, include every column
+        if len(df_list) == 0:
+            # Append dataframe to list
+            df_list.append(new_df)
+        # Otherwise, only include the specific data column
+        # to save memory
+        else:
+            # If msa, keep all columns
+            if get_city:
+                df_list.append(new_df)
+            # Only keep our main column
+            elif multi_code == False:
+                new_df = new_df[year_col]
+            else:
+                renamed_list = []
+                for code in renamed_code_columns:
+                    renamed_list.append(renamed_code_columns[code])
+                new_df = new_df[renamed_list]
+
+            # Append dataframe to list
+            df_list.append(new_df)
+
+    return
+
+
 def final_data_prep(df_list, name, 
                     tracts=False, 
                     blocks=False, 
+                    city=False,
                     msa=False,
+                    begin_year=2010,
                     end_year=2021):
     """
     Merge the dataframes and clean them.
@@ -535,6 +654,22 @@ def final_data_prep(df_list, name,
         # with a different MSA code, technically making them two 
         # different places (with the data of the prior years no longer
         # connected to the re-named and re-coded Metro)
+        df = df[(df[f"{end_year}"].notna())]
+        
+    elif city:
+        df = reduce(lambda left, right: 
+                   pd.merge(left, right, 
+                            left_on=['geo_id'], 
+                            right_on=['geo_id'],
+                            suffixes=(None, "_y"),
+                            how="outer"), df_list)
+
+        # Replace the Census' -666666 with NaN
+        df = df.replace(-666666666.0000, np.nan)
+        
+        # Now drop all rows where the end_year is Null, meaning there
+        # was no data for the most recent year. This usually means
+        # the city no longer exists (or possibly was renamed).
         df = df[(df[f"{end_year}"].notna())]
         
     # Otherwise, if not msa
@@ -588,7 +723,7 @@ def final_data_prep(df_list, name,
         df['2020'] = np.nan
         
         # Now reorganize the column
-        df = df[['name','msa_code'] + [str(i) for i in range(2010, end_year + 1)]]
+        df = df[['name','msa_code'] + [str(i) for i in range(begin_year, end_year + 1)]]
         
         # Strip "Metro Area" from name column (if it exists)
         df['name'] = df['name'].apply(lambda x: x.replace(" Metro Area",""))
@@ -610,6 +745,26 @@ def final_data_prep(df_list, name,
         # Save to csv in msa folder
         df.to_csv(f'datasets/cleaned_census_api_files/msa_data/{name}.csv', 
               encoding='utf-8', index=False)
+        
+    elif city:
+        
+        # Standardize dtypes
+        df['geo_id'] = df['geo_id'].astype(str)
+        df['state'] = df['geo_id'].apply(lambda x: str(x[:2]))
+
+        # Remove the "CDP" in a city's name
+        df['name'] = df['name'].str.replace("\sCDP","", regex=True)
+        
+        # Now reorganize the column
+        df = df[['name','geo_id'] + [str(i) for i in range(begin_year, end_year + 1)]]
+        
+        # create city folder if nonexistent
+        create_folder("datasets/cleaned_census_api_files/city_data")
+        
+        # Save to csv in city folder
+        df.to_csv(f'datasets/cleaned_census_api_files/city_data/{name}.csv', 
+              encoding='utf-8', index=False)
+
 
     
     print("Completed data prep.")
@@ -620,7 +775,10 @@ def final_data_prep(df_list, name,
 def download_and_format_msa_census_data(
     census_code,
     census_code_meaning,
-    end_year=False
+    begin_year=2010,
+    end_year=False,
+    format_msa=True,
+    format_city=False,
 ):
     """
     This is the main function that formats
@@ -635,8 +793,6 @@ def download_and_format_msa_census_data(
     the years.
     
     """
-    # Define beginning year
-    begin_year = 2010
 
     # If there's not already an end year, ask for it
     if not end_year:
@@ -657,18 +813,39 @@ def download_and_format_msa_census_data(
     census_code_dict = {i:census_code for i in range(
         begin_year, end_year + 1)}
 
-    # Run the API call
-    asyncio.run(url_to_dataframe_async_acs1(
-        begin_year, end_year, 
-        census_code_dict=census_code_dict,
-        df_list=df_list,
-        census_code_meaning=census_code_meaning,
-        get_msa=True))
+    if format_msa:
+        # Run the API call
+        asyncio.run(url_to_dataframe_async_acs1(
+            begin_year, end_year, 
+            census_code_dict=census_code_dict,
+            df_list=df_list,
+            census_code_meaning=census_code_meaning,
+            get_msa=True))
 
-    # Get merged dataframe
-    final_dataframe = final_data_prep(
-        df_list, census_code_meaning, 
-        msa=True, end_year=end_year)
+        # Get merged dataframe
+        final_dataframe = final_data_prep(
+            df_list, census_code_meaning,
+            begin_year=begin_year,
+            msa=True, end_year=end_year)
+        
+    elif format_city:
+        # Run the API call
+        asyncio.run(url_to_dataframe_async_acs5(
+            begin_year, end_year, 
+            census_code_dict=census_code_dict,
+            df_list=df_list,
+            census_code_meaning=census_code_meaning,
+            get_city=True))
+
+        # Get merged dataframe
+        final_dataframe = final_data_prep(
+            df_list, census_code_meaning,
+            begin_year=begin_year, 
+            city=True, end_year=end_year)
+        
+    else:
+        raise Error("Neither MSA nor City is specified. Please check function arguments.")
+        
     
     return final_dataframe
 

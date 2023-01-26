@@ -574,7 +574,8 @@ rent_to_price = pd.read_csv(
 rent_to_price = prep_census_datasets(rent_to_price)
 
 
-### Define main ranking function
+### MAKE FUNCTION THAT MAKES A TOTAL RANK 
+### BASED ON MULTIPLE DEMOGRAPHICS
 def make_ranking(
     df_dict,
     max_price=False,
@@ -651,7 +652,7 @@ def make_ranking(
             average_percent_weight_dict={
                 "Jobs":3,
                 "Median Rent":3}
-
+                
         plot_graphs (True/False): If True, ask for user inputs
             and run the plot_top_10_cities() function.
             
@@ -717,92 +718,6 @@ def make_ranking(
     # Create ordinal column
     merged_df['ordinal_date'] = merged_df['date'].map(datetime.toordinal)
     
-    def remove_msas_above_max_demo(
-        dataframe, demographic, the_value,
-        max_value=False, min_value=False):
-        """
-        This function takes a demographic and takes
-        out all MSAs whose most recent values are above
-        that demographic value. For example, if the
-        demographic is "median price" and the max_value
-        is 500000, this function will remove all MSAs
-        where the median price in the most recent year was 
-        equal to or greater than $500,000.
-        
-        Arguments
-        -----------
-            dataframe (DataFrame): The merged_df DataFrame.
-            demographic (str): A string of the demographic
-                name. It must be in snake_case format since
-                the string is used to call in the dataset
-                from the repo.
-            the_value (float): The number to use to filter
-                MSA demographics by.
-            max_value (True/False): Take out MSAs with a
-                demographic value greater than "the_value"
-                variable.
-            min_value (True/False): Take out MSAs with a
-                demographic value less than "the_value"
-                variable.
-        
-        Returns
-        -----------
-            final_df (DataFrame): A dataframe with each city
-                sorted by total rank.
-        
-        """
-        # Make copy
-        df = dataframe.copy()
-        
-        # Call in demographic dataset
-        demo_df = pd.read_csv(
-            f"datasets/cleaned_census_api_files/msa_data/{demographic}_msa.csv",
-            dtype={'msa_code':str}
-        )
-
-        # Run prep function to get into correct format
-        demo_df = prep_census_datasets(demo_df)
-        
-        # Get most recent year for median price
-        recent_year = demo_df['year'].max()
-        
-        # Filter by recent_year
-        recent_year_df = demo_df[demo_df['year']==recent_year].copy()
-        
-        # Filter dataframe based on max or min value
-        if max_value:
-            # Find all MSAs that are above the max price
-            filtered_df = recent_year_df[recent_year_df['value']>=the_value].copy()
-        elif min_value:
-            # Find all MSAs that are above the max price
-            filtered_df = recent_year_df[recent_year_df['value']<=the_value].copy()
-        
-        # Get the MSA names
-        priced_out_msa = set(filtered_df['msa_name'].unique())
-        
-        # Remove these MSAs from our main dataset
-        df = df[~df['msa_name'].isin(priced_out_msa)].copy().reset_index(drop=True)
-        
-        return df
-    
-    # Move forward if there is a maximum price
-    if max_price:
-        
-        # Run function and remove all MSAs that have a
-        # median price above the maximum specified
-        merged_df = remove_msas_above_max_demo(
-            merged_df, "median_price", 
-            max_price, max_value=True)
-        
-    # Move forward if there is a maximum rent-to-price ratio
-    if min_rent_to_price:
-        
-        # Run function and remove all MSAs that have a
-        # rent-to-price below the minimum specified
-        merged_df = remove_msas_above_max_demo(
-            merged_df, "rent_to_price_ratio", 
-            min_rent_to_price, min_value=True)
-        
     # Loop through all cities
     for city in merged_df['msa_name'].dropna().unique():
 
@@ -1014,7 +929,17 @@ def make_ranking(
     
     # Create jobs-per-units column
     final_df['jobs_per_unit'] = final_df['jobs']/final_df['total_units']
-
+    
+    # If max price, filter it
+    if max_price:
+        final_df = final_df[
+            final_df['median_price']<=max_price].reset_index(drop=True)
+        
+    # If min rent-price ratio, filter
+    if min_rent_to_price:
+        final_df = final_df[
+            final_df['rent_to_price_ratio']>=min_rent_to_price].reset_index(drop=True)
+    
     # If plot_grpahs = True, ask for user input to then
     # pass as arguments to the plot_top_10_cities() function
     if plot_graphs:
@@ -1089,6 +1014,8 @@ def make_ranking(
         plot_top_10_cities(**plot_arg_dict)
             
     return final_df
+
+
 
 
 def ask_ranking_function_args(

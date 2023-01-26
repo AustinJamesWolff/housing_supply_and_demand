@@ -135,7 +135,7 @@ This website is a good resource for finding census codes: https://censusreporter
 
 #### At The Tract and City Level
 * Median Rent
-  * 2010-2021: B25064_001E
+  * 2010-2021: B25058_001E
 * Renter-Occupied Units
   * 2010-2014: DP04_0046E
   * 2015-2021: DP04_0047E
