@@ -1475,17 +1475,17 @@ def block_standardize_tuple(tuple):
             per block group to a pre-defined dictionary.
     """
 
-    block = tuple[0]
+    block_df = tuple[0]
     og_df = tuple[1]
     year_start = tuple[2]
     year_end = tuple[3]
     weight = tuple[4]
     
-    years_10_19 = [str(i) for i in range(year_start, year_end)]
+    years_10_19 = [str(i) for i in range(year_start, 2019)]
         
     # Step 1: Get a dataframe grouped by BG20
     df = og_df.copy()
-    bg20_df = df[df['BG20']==block].drop_duplicates()
+    bg20_df = block_df.drop_duplicates()
     bg20_df = bg20_df.fillna(0)
         
     # Step 2: Get dot product of 2010-2019 values with the target weight values values
