@@ -1,6 +1,8 @@
 import awswrangler as wr
 import pandas as pd
 import numpy as np
+import boto3
+import requests
 from pyspark.sql.types import *
 from pyspark.sql.functions import col as spark_col
 
@@ -19,12 +21,16 @@ def run_standardize_script(
     # Group dataframe by BG20
     spark_groups = spark_df.groupby("BG20")
 
-    # Read in full raw dataframe into Pandas
-    og_df = wr.s3.read_csv("s3://" + src_file,
+    # Here are details about accessing cached files:
+    # https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-input-distributed-cache.html
+
+    # Call in raw data from cached hadoop file system
+    og_df = pd.read_csv("population_blocks_raw.csv",
         encoding='utf-8',
         dtype={'geo_id':str, 'state':str, 'county':str, 
             'tract':str, 'block':str, 'BG10':str, 'BG20':str,
             'TRACT20':str, 'TRACT10':str})
+    print(og_df.head(5))
 
     def block_standardize_spark(key, pdf):
 

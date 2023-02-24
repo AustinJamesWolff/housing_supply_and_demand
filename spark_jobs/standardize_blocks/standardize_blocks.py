@@ -12,7 +12,6 @@ from transform import run_standardize_script
 from write import write_file
 
 # AWS library
-import boto3
 import awswrangler as wr
 
 def main():

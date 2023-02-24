@@ -5,12 +5,12 @@ from pyspark.sql.functions import col as spark_col
 def read_df(spark, start_year, end_year, src_file):
 
     # Connect to S3
-    s3client = boto3.client("s3")
+    # s3client = boto3.client("s3")
     os.environ.setdefault("AWS_PROFILE", "default")
     os.environ.setdefault("AWS_DEFAULT_REGION", "us-west-1")
 
     # Get file path for spark readings
-    src_filepath = "s3a://" + src_file
+    src_filepath = "s3://" + src_file
 
     # READ IN DATAFRAME
     spark_s3_df = spark.read.load(src_filepath, format="csv", header=True)
