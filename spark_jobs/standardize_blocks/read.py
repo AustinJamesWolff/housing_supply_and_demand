@@ -1,5 +1,4 @@
 import os
-import boto3
 from pyspark.sql.functions import col as spark_col
 
 def read_df(spark, start_year, end_year, src_file):

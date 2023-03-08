@@ -1759,13 +1759,6 @@ def specify_geographies(dataframe, start_year, end_year):
         df.rename(columns={f'{year}':f'{year}_block'}, inplace=True)
         df[f'{year}_tract'] = df.groupby(['geoid_tract'])[f'{year}_block'].transform('sum')
     
-    # Reorder the columns -- If I have to change this again,
-    # just reorder the columns by naming every columns to keep
-    df = df.iloc[:, [0, len(years) + 3, len(years) + 4, 
-                    len(years) + 5, len(years) + 6] + 
-                    [i for i in range(1, len(years) + 3)] + 
-                    [i for i in range(len(years) + 7, 2*len(years) + 7)]]
-    
     return df
 
 
@@ -1773,42 +1766,69 @@ def create_and_save_geo_files(dataframe,
                               name,
                               keyword='',
                               begin_year=2010, 
-                              end_year=2020):
+                              end_year=2020,
+                              use_blocks=False
+                             ):
     """
     Create and save a census tract-based shapefile.
+    
+    Parameters
+    -------------
+        dataframe (DataFrame): The dataframe to add
+            geometries to.
+        name (str): The name to use for naming files.
+        keyword (str): Additional keyword to add to columns.
+        begin_year (int): The starting year of the data.
+        end_year (int): The ending year of the data.
+        use_blocks (bool): If True, merge block geometries to
+            geoid_block. If False, merge tract geometries to
+            geoid_tract.
+    
+    Returns
+    -------------
+        A GeoDataFrame of tracts (or blocks if specified) 
+            and their geometries.
     """
     df = dataframe.copy()
-    census20_geo = gp.read_file('datasets/census_original_files/census_tracts_2020/all_tracts_2020/all_tracts_2020.shp')
+    
+    # Define whether to use block or tract geometries
+    if use_blocks:
+        geo_keyword = "block"
+        census20_geo = gp.read_file(
+            'datasets/census_original_files/census_geopackages/block_group_geometries.gpkg')
+    else:
+        geo_keyword = "tract"
+        census20_geo = gp.read_file(
+            'datasets/census_original_files/census_geopackages/census_tract_geometries.gpkg')
 
     census20_geo = census20_geo[['GEOID','geometry']]
     
     standardized_tracts_geo = census20_geo.merge(df,
                                                  how='inner',
                                                  left_on='GEOID',
-                                                 right_on='geoid_tract')
+                                                 right_on=f'geoid_{geo_keyword}')
 
     if keyword != '':
         keyword = '_' + keyword
     
-    year_tract_list = [f'{year}_tract{keyword}' for year in range(begin_year, end_year+1)]
+    year_tract_list = [f'{year}_{geo_keyword}{keyword}' for year in range(begin_year, end_year+1)]
         
     standardized_tracts_geo = standardized_tracts_geo[
-        ['geoid_tract','state',
+        [f'geoid_{geo_keyword}','state',
         'county','tract'] + year_tract_list +
         ['geometry']].drop_duplicates().reset_index(drop=True)
     
-    print('Standardized tracts:')
-    display(standardized_tracts_geo)
+    print(f'Standardized {geo_keyword}:')
+    display(standardized_tracts_geo.head(1))
+    print(f"Shape: {standardized_tracts_geo.shape}")
 
     # Create folder if nonexistent
     create_folder("datasets/for_software")
     create_folder(f"datasets/for_software/{name}")
-    create_folder(f"datasets/for_software/{name}/{name}_tract_geo/")
+    create_folder(f"datasets/for_software/{name}/{name}_{geo_keyword}_geo/")
 
     # Save the files
-    standardized_tracts_geo.to_file(f'datasets/for_software/{name}/{name}_tract_geo/{name}_tract_geo.gpkg', driver="GPKG")
-    print(f'Successfully saved {name}_tract_geo.gpkg')
+    standardized_tracts_geo.to_file(f'datasets/for_software/{name}/{name}_{geo_keyword}_geo/{name}_{geo_keyword}_geo.gpkg', driver="GPKG")
+    print(f'Successfully saved {name}_{geo_keyword}_geo.gpkg')
     
     return standardized_tracts_geo
-    
-
