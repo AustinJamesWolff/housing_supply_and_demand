@@ -14,6 +14,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import pandas as pd
+import numpy as np
 
 # Set up Pandas defaults
 pd.options.display.float_format = '{:.2f}'.format
@@ -158,3 +159,125 @@ new_df = pd.DataFrame(new_dict)
 create_folder("datasets/bls/raw")
 new_df.to_csv("datasets/bls/raw/most_recent_bls_data.csv", index=False)
 print("Newest BLS data saved to 'datasets/bls/raw/most_recent_bls_data.csv'.")
+
+### Now work on smoothing out the COVID 
+### time-series anomaly via linear interpolation
+
+print("""\nNow working on cleaning dataset and smoothing out COVID anomaly via linear interpolation.""")
+
+# Create helpful cleaning functions
+def clean_BLS_msa_names(dataframe):
+    """
+    This functions standardizes the MSA names
+    between the BLS dataset and the Zillow
+    datasets by only taking the first city
+    within a BLS-MSA with a "-" hyphenate, 
+    and the first state with a "-" hyphenate.
+    
+    For example: 'Houston-The Woodlands-Sugar Land, TX'
+    will be turned into just 'Houston, TX' and
+    'Cincinnati, OH-KY-IN' will be turned into
+    just 'Cincinnati, OH'.
+    """
+    
+    df = dataframe.copy()
+    
+    # Get the state column
+    df['state'] = df['msa_name'].str.split(', ').str[1].str.strip()
+    df['state'] = df['state'].str.split('-').str[0].str.strip()
+    
+    # Get the first city name
+    df['city'] = df['msa_name'].str.split(', ').str[0].str.strip()
+    df['city'] = df['city'].str.split('-').str[0].str.strip()
+    
+    # Get msa name
+    df['msa_name'] = df['city'] + ", " + df['state']
+    
+    return df
+
+# Create interpolation function
+def interpolate_smoothen(
+    dataframe, 
+    msa_name,
+    end_date='2021-04-01',
+    start_date='2020-04-01'
+):
+    """
+    This function adds an "interpolated" column in which
+    the job numbers between the start_date and end_date
+    are linearly interpolated. The purpose of this function
+    is to give the user a column in which the impact of
+    COVID on job deceleration and acceleration has been
+    smoothed.
+    """
+    
+    smooth_jobs = dataframe.copy()
+    smooth_jobs = smooth_jobs[['msa_name','date','value']]
+    msa = smooth_jobs[smooth_jobs['msa_name']==msa_name].copy()
+
+    # Create dummy column
+    msa['dummy'] = msa['value']
+
+    # Filter and replace with NaNs
+    mask = (msa['date']<=end_date) & (msa['date']>=start_date)
+    msa.loc[mask, 'dummy'] = np.nan
+
+    # Use interpolation now
+    msa['interpolated'] = msa['dummy'].interpolate(method='linear')
+
+    # Drop dummy column
+    msa.drop(columns=['dummy'], inplace=True)
+    
+    return msa
+
+# Create main function to interpolate the dataset
+def interpolate_all_msa_job_data():
+    
+    # Call in the original job dataset
+    jobs = pd.read_csv('datasets/bls/raw/most_recent_bls_data.csv',
+                   dtype={'msa_code':str, 'state_code':str})
+
+    # Make sure the date column is in datetime format
+    jobs['date'] = pd.to_datetime(jobs['date'])
+
+    # Replace NECTA Division
+    jobs['msa_name'] = jobs['msa_name'].apply(lambda x: x.replace(" NECTA Division",""))
+    jobs['msa_name'] = jobs['msa_name'].apply(lambda x: x.replace(" NECTA",""))
+
+    # Standardize MSA names
+    jobs = clean_BLS_msa_names(jobs)
+    
+    # Add new column
+    jobs['interpolated'] = np.nan
+    
+    # Loop through all MSAs
+    for msa in jobs['msa_name'].unique():
+    
+        # Smoothen the data at the MSA level
+        smooth_msa = interpolate_smoothen(
+            dataframe=jobs, 
+            msa_name=msa,
+            end_date='2022-04-01',
+            start_date='2020-04-01')
+        
+        # Create a mask
+        mask = jobs['msa_name'] == msa
+
+        # Add the interpolated data to the original jobs dataframe
+        jobs.loc[mask, 'interpolated'] = smooth_msa['interpolated']
+    
+    # Create folder to save covid-smoothed dataset
+    folder_name = 'datasets/bls/smoothed'
+    create_folder(folder_name)
+    
+    # Create filename
+    filename = f"{folder_name}/most_recent_bls_covid_smoothed.csv"
+    
+    # Save file
+    jobs.to_csv(filename, index=False)
+
+# Now run the interpolation function
+interpolate_all_msa_job_data()
+
+print("\nInterpolated BLS data saved to 'datasets/bls/smoothed/most_recent_bls_covid_smoothed.csv'.")
+

@@ -52,7 +52,7 @@ total_units_msa = download_and_format_msa_census_data(
     census_code_meaning="total_units_msa",
     end_year=end_year)
 
-### Create Rent-to-Price dataset
+# ## Create Rent-to-Price dataset
 
 # Rename columns
 for i in range(2010, end_year + 1):
@@ -79,7 +79,7 @@ rent_to_price.to_csv(
     "datasets/cleaned_census_api_files/msa_data/rent_to_price_ratio_msa.csv", 
     index=False)
 
-### Create Jobs per Unit dataset
+# ## Create Jobs per Unit dataset
 
 # Read in jobs
 jobs = pd.read_csv('datasets/bls/raw/most_recent_bls_data.csv',
@@ -123,19 +123,19 @@ total_units = pd.read_csv(
     "datasets/cleaned_census_api_files/msa_data/total_units_msa.csv")
 for i in range(earliest_year, latest_year + 1):
     total_units.rename(columns={f"{i}":f"{i}_units"}, inplace=True)
-    
+
 # Merge data
 jobs_per_unit = new_jobs.merge(
     total_units, how='inner', 
     on=['msa_name'])
 
 # Loop through columns and divide rent by price per year
-for i in range(earliest_year, latest_year + 1):
+for i in range(earliest_year, end_year + 1):
     jobs_per_unit[f'{i}'] = jobs_per_unit[f"{i}_jobs"]/jobs_per_unit[f"{i}_units"]
-        
+
 # Only keep main columns
 jobs_per_unit = jobs_per_unit[['msa_name','msa_code'] +
-    [f'{i}' for i in range(earliest_year, latest_year + 1)]]
+    [f'{i}' for i in range(earliest_year, end_year + 1)]]
 
 # Save dataset
 jobs_per_unit.to_csv(
