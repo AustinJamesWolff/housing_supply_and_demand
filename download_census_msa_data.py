@@ -58,6 +58,13 @@ total_units_msa = download_and_format_msa_census_data(
     census_code_meaning="total_units_msa",
     end_year=end_year)
 
+# Run the API to download vacant units
+vacant_units_msa = download_and_format_msa_census_data(
+    census_code="B25002_003E",
+    census_code_meaning="vacant_units_msa",
+    end_year=end_year)
+
+
 # ## Create Rent-to-Price dataset
 
 # Rename columns
@@ -85,7 +92,7 @@ rent_to_price.to_csv(
     "datasets/cleaned_census_api_files/msa_data/rent_to_price_ratio_msa.csv", 
     index=False)
 
-# ## Create Jobs per Unit dataset
+### Create Jobs per Unit dataset
 
 # Read in jobs
 jobs = pd.read_csv('datasets/bls/raw/most_recent_bls_data.csv',
@@ -125,14 +132,14 @@ new_jobs.columns = ['msa_name'] + [
     f'{i}_jobs' for i in range(earliest_year, latest_year + 1)]
 
 # Read in total units and rename columns
-total_units = pd.read_csv(
+total_units_for_jobs = pd.read_csv(
     "datasets/cleaned_census_api_files/msa_data/total_units_msa.csv")
 for i in range(earliest_year, latest_year + 1):
-    total_units.rename(columns={f"{i}":f"{i}_units"}, inplace=True)
+    total_units_for_jobs.rename(columns={f"{i}":f"{i}_units"}, inplace=True)
 
 # Merge data
 jobs_per_unit = new_jobs.merge(
-    total_units, how='inner', 
+    total_units_for_jobs, how='inner', 
     on=['msa_name'])
 
 # Loop through columns and divide rent by price per year
@@ -146,4 +153,60 @@ jobs_per_unit = jobs_per_unit[['msa_name','msa_code'] +
 # Save dataset
 jobs_per_unit.to_csv(
     "datasets/cleaned_census_api_files/msa_data/jobs_per_unit_msa.csv", 
+    index=False)
+
+
+### CREATE POPULATION PER UNIT
+
+# Rename columns
+for i in range(2010, end_year + 1):
+    population_msa.rename(columns={f"{i}":f"{i}_population"}, inplace=True)
+for i in range(2010, end_year + 1):
+    total_units_msa.rename(columns={f"{i}":f"{i}_units"}, inplace=True)
+
+# Enforce dtype
+population_msa['msa_code'] = population_msa['msa_code'].astype(str)
+total_units_msa['msa_code'] = total_units_msa['msa_code'].astype(str)
+
+# Merge price data
+pop_per_units = population_msa.merge(
+    total_units_msa, how='inner', 
+    on=['msa_code','msa_name'])
+
+# Loop through columns and divide rent by price per year
+for i in range(2010, end_year + 1):
+    pop_per_units[f'{i}'] = pop_per_units[f"{i}_population"]/pop_per_units[f"{i}_units"]
+    
+    # Drop rent and price columns
+    pop_per_units.drop(columns=[f'{i}_population',f'{i}_units'], inplace=True)
+
+# Save dataset
+pop_per_units.to_csv(
+    "datasets/cleaned_census_api_files/msa_data/population_per_unit_msa.csv", 
+    index=False)
+
+
+### CREATE VACANCY RATE
+# Rename columns
+for i in range(2010, end_year + 1):
+    vacant_units_msa.rename(columns={f"{i}":f"{i}_vacant"}, inplace=True)
+
+# Enforce dtype
+vacant_units_msa['msa_code'] = vacant_units_msa['msa_code'].astype(str)
+
+# Merge price data
+vacancy_rate = vacant_units_msa.merge(
+    total_units_msa, how='inner', 
+    on=['msa_code','msa_name'])
+
+# Loop through columns and divide rent by price per year
+for i in range(2010, end_year + 1):
+    vacancy_rate[f'{i}'] = vacancy_rate[f"{i}_vacant"]/vacancy_rate[f"{i}_units"]
+    
+    # Drop rent and price columns
+    vacancy_rate.drop(columns=[f'{i}_vacant',f'{i}_units'], inplace=True)
+
+# Save dataset
+vacancy_rate.to_csv(
+    "datasets/cleaned_census_api_files/msa_data/vacancy_rate_msa.csv", 
     index=False)
