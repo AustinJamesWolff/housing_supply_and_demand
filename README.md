@@ -30,10 +30,10 @@
 
 <!-- PROJECT LOGO -->
 <br />
-<div align="center">
+<!-- <div align="center">
   <a href="https://github.com/AustinJamesWolff/housing_supply_and_demand">
     <img src="images/logo.png" alt="Logo" width="80" height="80">
-  </a>
+  </a> -->
 
 <h3 align="center">Housing Supply and Demand Indicator</h3>
 

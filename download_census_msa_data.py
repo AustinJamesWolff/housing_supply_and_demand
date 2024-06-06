@@ -28,6 +28,12 @@ begin_year = 2010
 # Ask for end year
 end_year = int(input("What is the last year to download data from? "))
 
+# Run the API to download population
+median_income_msa = download_and_format_msa_census_data(
+    census_code="B01003_001E",
+    census_code_meaning="population_msa",
+    end_year=end_year)
+
 # Run the API to download median income
 median_income_msa = download_and_format_msa_census_data(
     census_code="B19013_001E",

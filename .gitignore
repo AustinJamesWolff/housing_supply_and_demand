@@ -7,6 +7,8 @@ graphs
 venv/
 **/__pycache__
 env/
+*.geojson
+eda.ipynb
 
 
 # Specific large datasets
